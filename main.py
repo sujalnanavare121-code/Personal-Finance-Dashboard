@@ -1,10 +1,29 @@
-import sqlite3
-import json
-import csv
-import os
-import shutil
 from datetime import datetime
-import matplotlib.pyplot as plt
+
+from database import connect_db, create_database
+
+from transactions import (
+    add_transaction as db_add_transaction,
+    get_all_transactions as db_get_all_transactions,
+    edit_transaction as db_edit_transaction,
+    delete_transaction as db_delete_transaction
+)
+
+from reports import (
+    calculate_summary as db_calculate_summary,
+    monthly_summary as db_monthly_summary,
+    highest_expense_category as db_highest_expense_category,
+    search_transactions as db_search_transactions
+)
+
+from backup import (
+    save_json,
+    backup_data as db_backup_data,
+    restore_data as db_restore_data,
+    export_csv as db_export_csv
+)
+
+from charts import create_expense_chart as db_create_expense_chart
 
 DB_FILE = "finance.db"
 JSON_FILE = "transactions.json"
@@ -12,34 +31,6 @@ CSV_FILE = "transactions.csv"
 BACKUP_FILE = "backup.json"
 CHART_FOLDER = "charts"
 
-# ==================== DATABASE ====================
-
-def connect_db():
-    return sqlite3.connect(DB_FILE)
-
-def create_database():
-    conn = connect_db()
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS transactions(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date TEXT NOT NULL,
-            type TEXT NOT NULL,
-            category TEXT NOT NULL,
-            amount REAL NOT NULL
-        )
-    """)
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS settings(
-            key TEXT PRIMARY KEY,
-            value REAL
-        )
-    """)
-
-    conn.commit()
-    conn.close()
 
 # ==================== VALIDATION ====================
 
@@ -104,7 +95,6 @@ def add_transaction():
     conn.commit()
     conn.close()
 
-    save_json()
 
     print("\nTransaction added successfully!")
     pause()
@@ -199,7 +189,6 @@ def edit_transaction():
     conn.commit()
     conn.close()
 
-    save_json()
 
     print("\nTransaction updated successfully!")
     pause()
@@ -248,7 +237,6 @@ def delete_transaction():
     conn.commit()
     conn.close()
 
-    save_json()
 
     print("\nTransaction deleted successfully!")
     pause()
@@ -556,141 +544,24 @@ def budget_status():
 
 # ==================== JSON BACKUP ====================
 
-def save_json():
-    transactions = get_all_transactions()
-
-    data = []
-
-    for transaction in transactions:
-        data.append({
-            "id": transaction[0],
-            "date": transaction[1],
-            "type": transaction[2],
-            "category": transaction[3],
-            "amount": transaction[4]
-        })
-
-    with open(JSON_FILE, "w") as file:
-        json.dump(data, file, indent=4)
-
 def backup_data():
-    if not os.path.exists(JSON_FILE):
-        save_json()
-
-    shutil.copy(JSON_FILE, BACKUP_FILE)
-
-    print("\nBackup created successfully!")
-    print("File:", BACKUP_FILE)
-
+    db_backup_data()
     pause()
+
 
 def restore_data():
-    if not os.path.exists(BACKUP_FILE):
-        print("\nNo backup file found.")
-        pause()
-        return
-
-    with open(BACKUP_FILE, "r") as file:
-        data = json.load(file)
-
-    conn = connect_db()
-    cursor = conn.cursor()
-
-    cursor.execute("DELETE FROM transactions")
-
-    for transaction in data:
-        cursor.execute("""
-            INSERT INTO transactions(date,type,category,amount)
-            VALUES(?,?,?,?)
-        """, (
-            transaction["date"],
-            transaction["type"],
-            transaction["category"],
-            transaction["amount"]
-        ))
-
-    conn.commit()
-    conn.close()
-
-    save_json()
-
-    print("\nData restored successfully!")
+    result = db_restore_data()
     pause()
-
+    return result
 # ==================== CSV EXPORT ====================
 
 def export_csv():
-    transactions = get_all_transactions()
-
-    if len(transactions) == 0:
-        print("\nNo transactions to export.")
-        pause()
-        return
-
-    with open(
-        CSV_FILE,
-        "w",
-        newline=""
-    ) as file:
-
-        writer = csv.writer(file)
-
-        writer.writerow([
-            "ID",
-            "Date",
-            "Type",
-            "Category",
-            "Amount"
-        ])
-
-        for transaction in transactions:
-            writer.writerow(transaction)
-
-    print("\nCSV exported successfully!")
-    print("File:", CSV_FILE)
-
-    pause()
+    db_export_csv()
 
 # ==================== CHARTS ====================
 
 def create_expense_chart():
-    transactions = get_all_transactions()
-
-    _, _, _, category_expenses = calculate_summary(
-        transactions
-    )
-
-    if len(category_expenses) == 0:
-        print("\nNo expense data available.")
-        pause()
-        return
-
-    os.makedirs(CHART_FOLDER, exist_ok=True)
-
-    categories = list(category_expenses.keys())
-    amounts = list(category_expenses.values())
-
-    plt.figure(figsize=(8, 6))
-
-    plt.pie(
-        amounts,
-        labels=categories,
-        autopct="%1.1f%%"
-    )
-
-    plt.title("Category-wise Expenses")
-
-    path = os.path.join(
-        CHART_FOLDER,
-        "expense_chart.png"
-    )
-
-    plt.savefig(path)
-    plt.show()
-
-    print("\nChart saved at:", path)
-
-    pause()
+    db_create_expense_chart()
 
 # ==================== DASHBOARD ====================
 

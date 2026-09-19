@@ -5,3 +5,4 @@ transactions.json
 transactions.csv
 backup.json
 charts/
+main_before_modular.py
