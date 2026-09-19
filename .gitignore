@@ -1,0 +1,7 @@
+﻿__pycache__/
+*.pyc
+finance.db
+transactions.json
+transactions.csv
+backup.json
+charts/
